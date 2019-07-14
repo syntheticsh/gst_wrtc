@@ -11,7 +11,7 @@
 var ws_server;
 var ws_port;
 // Set this to use a specific peer id instead of a random one
-var default_peer_id;
+var default_peer_id = 1;
 // Override with your own STUN servers if you want
 var rtc_configuration = {iceServers: [{urls: "stun:stun.services.mozilla.com"},
                                       {urls: "stun:stun.l.google.com:19302"}]};
@@ -205,6 +205,7 @@ function websocketServerConnect() {
     } else {
         throw new Error ("Don't know how to connect to the signalling server with uri" + window.location);
     }
+
     var ws_url = 'wss://' + ws_server + ':' + ws_port
     setStatus("Connecting to server " + ws_url);
     ws_conn = new WebSocket(ws_url);

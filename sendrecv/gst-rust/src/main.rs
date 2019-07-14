@@ -70,6 +70,7 @@ enum MediaType {
     Video,
 }
 
+
 // Strong reference to our application state
 #[derive(Debug, Clone)]
 struct App(Arc<AppInner>);
@@ -876,3 +877,4 @@ fn main() {
     // And now shut down the runtime
     runtime.shutdown_now().wait().unwrap();
 }
+
