@@ -91,37 +91,3 @@ $ gcc webrtc-sendrecv.c $(pkg-config --cflags --libs gstreamer-webrtc-1.0 gstrea
 With all versions, you will see a bouncing ball + hear red noise in the browser, and your browser's webcam + mic in the gst app.
 
 You can pass a --server argument to all versions, for example `--server=wss://127.0.0.1:8443`.
-
-#### Running the Java version
-
-`cd sendrecv/gst-java`\
-`./gradlew build`\
-`java -jar build/libs/gst-java.jar --peer-id=ID` with the `id` from the browser.
-
-You can optionally specify the server URL too (it defaults to wss://webrtc.nirbheek.in:8443):
-
-`java -jar build/libs/gst-java.jar --peer-id=1 --server=ws://localhost:8443`
-
-### multiparty-sendrecv: Multiparty audio conference with N peers
-
-* Build the sources in the `gst/` directory on your machine
-
-```console
-$ gcc mp-webrtc-sendrecv.c $(pkg-config --cflags --libs gstreamer-webrtc-1.0 gstreamer-sdp-1.0 libsoup-2.4 json-glib-1.0) -o mp-webrtc-sendrecv
-```
-
-* Run `mp-webrtc-sendrecv --room-id=ID` with `ID` as a room name. The peer will connect to the signalling server and setup a conference room.
-* Run this as many times as you like, each will spawn a peer that sends red noise and outputs the red noise it receives from other peers.
-  - To change what a peer sends, find the `audiotestsrc` element in the source and change the `wave` property.
-  - You can, of course, also replace `audiotestsrc` itself with `autoaudiosrc` (any platform) or `pulsesink` (on linux).
-* TODO: implement JS to do the same, derived from the JS for the `sendrecv` example.
-
-### TODO: Selective Forwarding Unit (SFU) example
-
-* Server routes media between peers
-* Participant sends 1 stream, receives n-1 streams
-
-### TODO: Multipoint Control Unit (MCU) example
-
-* Server mixes media from all participants
-* Participant sends 1 stream, receives 1 stream
