@@ -64,13 +64,6 @@ enum JsonMsg {
     },
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum MediaType {
-    Audio,
-    Video,
-}
-
-
 // Strong reference to our application state
 #[derive(Debug, Clone)]
 struct App(Arc<AppInner>);
@@ -268,93 +261,6 @@ impl App {
         Ok(())
     }
 
-    // Handle a newly decoded stream from decodebin, i.e. one of the streams that the peer is
-    // sending to us. Connect it to newly create sink elements and converters.
-    fn handle_media_stream(&self, pad: &gst::Pad, media_type: MediaType) -> Result<(), Error> {
-        println!("Trying to handle stream {:?}", media_type);
-
-        let (q, conv, sink) = match media_type {
-            MediaType::Audio => {
-                let q = gst::ElementFactory::make("queue", None).unwrap();
-                let conv = gst::ElementFactory::make("audioconvert", None).unwrap();
-                let sink = gst::ElementFactory::make("autoaudiosink", None).unwrap();
-                let resample = gst::ElementFactory::make("audioresample", None).unwrap();
-
-                self.0
-                    .pipeline
-                    .add_many(&[&q, &conv, &resample, &sink])
-                    .unwrap();
-                gst::Element::link_many(&[&q, &conv, &resample, &sink])?;
-
-                resample.sync_state_with_parent()?;
-
-                (q, conv, sink)
-            }
-            MediaType::Video => {
-                let q = gst::ElementFactory::make("queue", None).unwrap();
-                let conv = gst::ElementFactory::make("videoconvert", None).unwrap();
-                let sink = gst::ElementFactory::make("autovideosink", None).unwrap();
-
-                self.0.pipeline.add_many(&[&q, &conv, &sink]).unwrap();
-                gst::Element::link_many(&[&q, &conv, &sink])?;
-
-                (q, conv, sink)
-            }
-        };
-
-        q.sync_state_with_parent()?;
-        conv.sync_state_with_parent()?;
-        sink.sync_state_with_parent()?;
-
-        let qpad = q.get_static_pad("sink").unwrap();
-        pad.link(&qpad)?;
-
-        Ok(())
-    }
-
-    // Handle a newly decoded decodebin stream and depending on its type, create the relevant
-    // elements or simply ignore it
-    fn on_incoming_decodebin_stream(&self, pad: &gst::Pad) -> Result<(), Error> {
-        let caps = pad.get_current_caps().unwrap();
-        let name = caps.get_structure(0).unwrap().get_name();
-
-        if name.starts_with("video/") {
-            self.handle_media_stream(&pad, MediaType::Video)
-        } else if name.starts_with("audio/") {
-            self.handle_media_stream(&pad, MediaType::Audio)
-        } else {
-            println!("Unknown pad {:?}, ignoring", pad);
-            Ok(())
-        }
-    }
-
-    // Whenever there's a new incoming, encoded stream from the peer create a new decodebin
-    fn on_incoming_stream(&self, pad: &gst::Pad) -> Result<(), Error> {
-        // Early return for the source pads we're adding ourselves
-        if pad.get_direction() != gst::PadDirection::Src {
-            return Ok(());
-        }
-
-        let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
-        let app_clone = self.downgrade();
-        decodebin.connect_pad_added(move |_decodebin, pad| {
-            let app = upgrade_weak!(app_clone);
-
-            if let Err(err) = app.on_incoming_decodebin_stream(pad) {
-                app.post_error(format!("Failed to handle decoded stream: {:?}", err).as_str());
-            }
-        });
-
-        self.0.pipeline.add(&decodebin).unwrap();
-
-        decodebin.sync_state_with_parent()?;
-
-        let sinkpad = decodebin.get_static_pad("sink").unwrap();
-        pad.link(&sinkpad).unwrap();
-
-        Ok(())
-    }
-
     // Asynchronously send ICE candidates to the peer via the WebSocket connection as a JSON
     // message
     fn send_ice_candidate_message(&self, mlineindex: u32, candidate: String) -> Result<(), Error> {
@@ -494,16 +400,6 @@ impl App {
                 None
             })
             .unwrap();
-
-        // Whenever there is a new stream incoming from the peer, handle it
-        let app_clone = self.downgrade();
-        self.0.webrtcbin.connect_pad_added(move |_webrtc, pad| {
-            let app = upgrade_weak!(app_clone);
-
-            if let Err(err) = app.on_incoming_stream(pad) {
-                app.post_error(format!("Failed to handle incoming stream: {:?}", err).as_str());
-            }
-        });
 
         // Create our audio/video sources we send to the peer
         self.add_video_source()?;
@@ -877,4 +773,5 @@ fn main() {
     // And now shut down the runtime
     runtime.shutdown_now().wait().unwrap();
 }
+
 

@@ -16,14 +16,11 @@ var default_peer_id = 1;
 var rtc_configuration = {iceServers: [{urls: "stun:stun.services.mozilla.com"},
                                       {urls: "stun:stun.l.google.com:19302"}]};
 // The default constraints that will be attempted. Can be overriden by the user.
-var default_constraints = {video: true, audio: true};
 
 var connect_attempts = 0;
 var peer_connection;
 var send_channel;
 var ws_conn;
-// Promise for local stream after constraints are approved by the user
-var local_stream_promise;
 
 function getOurId() {
     return Math.floor(Math.random() * (9000 - 10) + 10).toString();
@@ -59,14 +56,6 @@ function setError(text) {
 }
 
 function resetVideo() {
-    // Release the webcam and mic
-    if (local_stream_promise)
-        local_stream_promise.then(stream => {
-            if (stream) {
-                stream.getTracks().forEach(function (track) { track.stop(); });
-            }
-        });
-
     // Reset the video element and stop showing the last received frame
     var videoElement = getVideoElement();
     videoElement.pause();
@@ -81,11 +70,8 @@ function onIncomingSDP(sdp) {
         if (sdp.type != "offer")
             return;
         setStatus("Got SDP offer");
-        local_stream_promise.then((stream) => {
-            setStatus("Got local stream, creating answer");
-            peer_connection.createAnswer()
-            .then(onLocalDescription).catch(setError);
-        }).catch(setError);
+        peer_connection.createAnswer()
+        .then(onLocalDescription).catch(setError);
     }).catch(setError);
 }
 
@@ -161,26 +147,6 @@ function onServerError(event) {
     window.setTimeout(websocketServerConnect, 3000);
 }
 
-function getLocalStream() {
-    var constraints;
-    var textarea = document.getElementById('constraints');
-    try {
-        constraints = JSON.parse(textarea.value);
-    } catch (e) {
-        console.error(e);
-        setError('ERROR parsing constraints: ' + e.message + ', using default constraints');
-        constraints = default_constraints;
-    }
-    console.log(JSON.stringify(constraints));
-
-    // Add local stream
-    if (navigator.mediaDevices.getUserMedia) {
-        return navigator.mediaDevices.getUserMedia(constraints);
-    } else {
-        errorUserMediaHandler();
-    }
-}
-
 function websocketServerConnect() {
     connect_attempts++;
     if (connect_attempts > 3) {
@@ -191,10 +157,6 @@ function websocketServerConnect() {
     var span = document.getElementById("status");
     span.classList.remove('error');
     span.textContent = '';
-    // Populate constraints
-    var textarea = document.getElementById('constraints');
-    if (textarea.value == '')
-        textarea.value = JSON.stringify(default_constraints);
     // Fetch the peer id to use
     peer_id = default_peer_id || getOurId();
     ws_port = ws_port || '8443';
@@ -280,12 +242,6 @@ function createCall(msg) {
     send_channel.onclose = handleDataChannelClose;
     peer_connection.ondatachannel = onDataChannel;
     peer_connection.ontrack = onRemoteTrack;
-    /* Send our video/audio to the other peer */
-    local_stream_promise = getLocalStream().then((stream) => {
-        console.log('Adding local stream');
-        peer_connection.addStream(stream);
-        return stream;
-    }).catch(setError);
 
     if (!msg.sdp) {
         console.log("WARNING: First message wasn't an SDP message!?");
