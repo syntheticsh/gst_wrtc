@@ -47,6 +47,16 @@ lazy_static! {
             ],
         )
     };
+    static ref RTP_CAPS_H264: gst::Caps = {
+        gst::Caps::new_simple(
+            "application/x-rtp",
+            &[
+                ("media", &"video"),
+                ("encoding-name", &"H264"),
+                ("payload", &(96i32)),
+            ],
+        )
+    };
 }
 
 #[derive(Serialize, Deserialize)]
@@ -275,22 +285,33 @@ impl App {
 
     // Create a video test source plus encoder for the video stream we send to the peer
     fn add_video_source(&self) -> Result<(), Error> {
-        let videotestsrc = gst::ElementFactory::make("videotestsrc", None).unwrap();
-        let videoconvert = gst::ElementFactory::make("videoconvert", None).unwrap();
-        let queue = gst::ElementFactory::make("queue", None).unwrap();
-        let vp8enc = gst::ElementFactory::make("vp8enc", None).unwrap();
+        let source = gst::ElementFactory::make("videotestsrc", Some("source"))
+            .expect("Could not create uridecodebin element.");
+        /*let source = gst::ElementFactory::make("uridecodebin", Some("source"))
+            .expect("Could not create uridecodebin element.");*/
+        let videoconvert = gst::ElementFactory::make("videoconvert", Some("videoconvert"))
+            .expect("Could not create convert element.");
 
-        videotestsrc.set_property_from_str("pattern", "ball");
-        videotestsrc.set_property("is-live", &true).unwrap();
-        vp8enc.set_property("deadline", &1i64).unwrap();
+        let queue = gst::ElementFactory::make("queue", None).expect("Could not create queue element.");
+        let vp8enc = gst::ElementFactory::make("vp8enc", None).expect("Could not create vp8enc element.");
 
-        let rtpvp8pay = gst::ElementFactory::make("rtpvp8pay", None).unwrap();
-        let queue2 = gst::ElementFactory::make("queue", None).unwrap();
+        /*let uri =
+            "https://www.freedesktop.org/software/gstreamer-sdk/data/media/sintel_trailer-480p.webm";
+
+        source
+            .set_property("uri", &uri)
+            .expect("Can't set uri property on uridecodebin");*/
+        source.set_property_from_str("pattern", "ball");
+        source.set_property("is-live", &true).unwrap();
+        vp8enc.set_property("deadline", &1i64).expect("Can't set deadline property on vp8enc");
+
+        let rtpvp8pay = gst::ElementFactory::make("rtpvp8pay", None).expect("Could not create rtpvp8pay element.");
+        let queue2 = gst::ElementFactory::make("queue", None).expect("Could not create queue2 element.");
 
         self.0
             .pipeline
             .add_many(&[
-                &videotestsrc,
+                &source,
                 &videoconvert,
                 &queue,
                 &vp8enc,
@@ -300,13 +321,13 @@ impl App {
             .unwrap();
 
         gst::Element::link_many(&[
-            &videotestsrc,
+            &source,
             &videoconvert,
             &queue,
             &vp8enc,
             &rtpvp8pay,
             &queue2,
-        ])?;
+        ]).expect("Could not link video");
 
         queue2.link_filtered(&self.0.webrtcbin, Some(&*RTP_CAPS_VP8))?;
 
@@ -316,16 +337,13 @@ impl App {
     // Create a audio test source plus encoders for the audio stream we send to the peer
     fn add_audio_source(&self) -> Result<(), Error> {
         let audiotestsrc = gst::ElementFactory::make("audiotestsrc", None).unwrap();
-        let queue = gst::ElementFactory::make("queue", None).unwrap();
-        let audioconvert = gst::ElementFactory::make("audioconvert", None).unwrap();
-        let audioresample = gst::ElementFactory::make("audioresample", None).unwrap();
-        let queue2 = gst::ElementFactory::make("queue", None).unwrap();
-        let opusenc = gst::ElementFactory::make("opusenc", None).unwrap();
-        let rtpopuspay = gst::ElementFactory::make("rtpopuspay", None).unwrap();
-        let queue3 = gst::ElementFactory::make("queue", None).unwrap();
-
-        audiotestsrc.set_property_from_str("wave", "red-noise");
-        audiotestsrc.set_property("is-live", &true).unwrap();
+        let queue = gst::ElementFactory::make("queue", None).expect("Could not create queue");
+        let audioconvert = gst::ElementFactory::make("audioconvert", None).expect("Could not create audioconvert element.");
+        let audioresample = gst::ElementFactory::make("audioresample", None).expect("Could not create audioresample element.");
+        let queue2 = gst::ElementFactory::make("queue", None).expect("Could not create queue2 element");
+        let opusenc = gst::ElementFactory::make("opusenc", None).expect("Could not create opusenc element.");
+        let rtpopuspay = gst::ElementFactory::make("rtpopuspay", None).expect("Could not create rtpopuspay element.");
+        let queue3 = gst::ElementFactory::make("queue", None).expect("Could not create queue3 element");
 
         self.0
             .pipeline
@@ -350,7 +368,7 @@ impl App {
             &opusenc,
             &rtpopuspay,
             &queue3,
-        ])?;
+        ]).expect("Could not link audio");
 
         queue3.link_filtered(&self.0.webrtcbin, Some(&*RTP_CAPS_OPUS))?;
 
@@ -773,5 +791,3 @@ fn main() {
     // And now shut down the runtime
     runtime.shutdown_now().wait().unwrap();
 }
-
-
