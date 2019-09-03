@@ -4,6 +4,8 @@ services:
   sendrecv-gst-rust:
     build: ./sendrecv
     network_mode: "host"
+    environment:
+      - GST_DEBUG=2
   sendrecv-js:
     build: ./js
     network_mode: "host"
