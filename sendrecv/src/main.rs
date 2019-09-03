@@ -47,6 +47,15 @@ lazy_static! {
             ],
         )
     };
+    static ref I420_CAPS: gst::Caps = {
+        gst::Caps::new_simple(
+            "video/x-raw",
+            &[
+                ("format", &"I420"),
+                ("framerate", &(24i32)),
+            ],
+        )
+    };
     /*static ref RTP_CAPS_H264: gst::Caps = {
         gst::Caps::new_simple(
             "application/x-rtp",
@@ -309,21 +318,28 @@ impl App {
             .add_many(&[
                 &source,
                 &videoconvert,
-                //&queue,
+                &queue,
                 &vp8enc,
                 &rtpvp8pay,
                 &queue2,
             ])
             .expect("Failed to add video elements to pipeline.");
 
-        gst::Element::link_many(&[
+        source.link(&videoconvert).expect("Could not link videoconvert to source");
+        videoconvert.link(&queue).expect("Could not link queue to videoconvert");
+        //source.link(&queue).expect("Could not link queue to videoconvert");
+        queue.link(&vp8enc).expect("Could not link vp8enc to queue");
+        vp8enc.link(&rtpvp8pay).expect("Could not link rtpvp8pay to vp8enc");
+        rtpvp8pay.link(&queue2).expect("Could not link queue2 to rtpvp8pay");
+
+        /*gst::Element::link_many(&[
             &source,
             &videoconvert,
-            //&queue,
+            &queue,
             &vp8enc,
             &rtpvp8pay,
             &queue2,
-        ]).expect("Could not link many video");
+        ]).expect("Could not link many video");*/
 
         queue2.link_filtered(&self.0.webrtcbin, Some(&*RTP_CAPS_VP8)).expect("Could not link filtered video to webrtcbin");
 
@@ -365,7 +381,7 @@ impl App {
     }
 
     // Create a audio test source plus encoders for the audio stream we send to the peer
-    fn add_audio_source(&self) -> Result<(), Error> {
+    /*fn add_audio_source(&self) -> Result<(), Error> {
         let audiotestsrc = gst::ElementFactory::make("audiotestsrc", None).unwrap();
         let queue = gst::ElementFactory::make("queue", None).expect("Could not create queue");
         let audioconvert = gst::ElementFactory::make("audioconvert", None).expect("Could not create audioconvert element.");
@@ -403,7 +419,7 @@ impl App {
         queue3.link_filtered(&self.0.webrtcbin, Some(&*RTP_CAPS_OPUS)).expect("Could not link filtered audio to webrtcbin");
 
         Ok(())
-    }
+    }*/
 
     // Finish creating our pipeline and actually start it once the connection with the peer is
     // there

@@ -5,7 +5,7 @@ services:
     build: ./sendrecv
     network_mode: "host"
     environment:
-      - GST_DEBUG=2
+      - GST_DEBUG=4
   sendrecv-js:
     build: ./js
     network_mode: "host"
