@@ -327,55 +327,11 @@ impl App {
 
         source.link(&videoconvert).expect("Could not link videoconvert to source");
         videoconvert.link(&queue).expect("Could not link queue to videoconvert");
-        //source.link(&queue).expect("Could not link queue to videoconvert");
         queue.link(&vp8enc).expect("Could not link vp8enc to queue");
         vp8enc.link(&rtpvp8pay).expect("Could not link rtpvp8pay to vp8enc");
         rtpvp8pay.link(&queue2).expect("Could not link queue2 to rtpvp8pay");
 
-        /*gst::Element::link_many(&[
-            &source,
-            &videoconvert,
-            &queue,
-            &vp8enc,
-            &rtpvp8pay,
-            &queue2,
-        ]).expect("Could not link many video");*/
-
         queue2.link_filtered(&self.0.webrtcbin, Some(&*RTP_CAPS_VP8)).expect("Could not link filtered video to webrtcbin");
-
-        /*let queuea = gst::ElementFactory::make("queue", None).expect("Could not create queue");
-        let audioconvert = gst::ElementFactory::make("audioconvert", None).expect("Could not create audioconvert element.");
-        let audioresample = gst::ElementFactory::make("audioresample", None).expect("Could not create audioresample element.");
-        let queuea2 = gst::ElementFactory::make("queue", None).expect("Could not create queue2 element");
-        let opusenc = gst::ElementFactory::make("opusenc", None).expect("Could not create opusenc element.");
-        let rtpopuspay = gst::ElementFactory::make("rtpopuspay", None).expect("Could not create rtpopuspay element.");
-        let queue3 = gst::ElementFactory::make("queue", None).expect("Could not create queue3 element");
-
-        self.0
-            .pipeline
-            .add_many(&[
-                &queuea,
-                &audioconvert,
-                &audioresample,
-                &queuea2,
-                &opusenc,
-                &rtpopuspay,
-                &queue3,
-            ])
-            .expect("Could not add audio elements to pipeline");
-
-        gst::Element::link_many(&[
-            &source,
-            &queuea,
-            &audioconvert,
-            &audioresample,
-            &queuea2,
-            &opusenc,
-            &rtpopuspay,
-            &queue3,
-        ]).expect("Could not link audio");
-
-        queue3.link_filtered(&self.0.webrtcbin, Some(&*RTP_CAPS_OPUS)).expect("Could not link filtered audio to webrtcbin");*/
 
         Ok(())
     }
