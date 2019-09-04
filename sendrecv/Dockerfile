@@ -95,7 +95,7 @@ COPY Cargo.toml ./Cargo.toml
 RUN cargo build
 RUN rm src/*.rs
 
-COPY src ./src
+COPY ./src ./src
 RUN cargo build
 
 CMD echo "Waiting a few seconds for you to open the browser at localhost:8080" \
