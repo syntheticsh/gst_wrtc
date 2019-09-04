@@ -96,7 +96,7 @@ RUN cargo build
 RUN rm src/*.rs
 
 COPY ./src ./src
-RUN cargo build
+RUN touch ./src/main.rs && cargo build
 
 CMD echo "Waiting a few seconds for you to open the browser at localhost:8080" \
     && sleep 10 \
