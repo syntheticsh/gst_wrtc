@@ -293,13 +293,11 @@ impl App {
     }
 
     // Create a video test source plus encoder for the video stream we send to the peer
-    fn add_video_source(&self) -> Result<(), Error> {
+    fn add_source(&self) -> Result<(), Error> {
         let source = gst::ElementFactory::make("souphttpsrc", Some("source"))
-            .expect("Could not create uridecodebin element.");
-        let videoconvert = gst::ElementFactory::make("videoconvert", Some("videoconvert"))
-            .expect("Could not create convert element.");
-        let queue = gst::ElementFactory::make("queue", None).expect("Could not create queue element.");
-        let vp8enc = gst::ElementFactory::make("vp8enc", None).expect("Could not create vp8enc element.");
+            .expect("Could not create souphttpsrc element.");
+        let decodebin = gst::ElementFactory::make("decodebin", Some("decodebin"))
+            .expect("Could not create docodebin element.");
 
         let uri =
             "https://www.freedesktop.org/software/gstreamer-sdk/data/media/sintel_trailer-480p.webm";
@@ -308,30 +306,93 @@ impl App {
             .set_property("location", &uri)
             .expect("Can't set uri property on source");
         source.set_property("is-live", &true).unwrap();
-        vp8enc.set_property("deadline", &1i64).expect("Can't set deadline property on vp8enc");
-
-        let rtpvp8pay = gst::ElementFactory::make("rtpvp8pay", None).expect("Could not create rtpvp8pay element.");
-        let queue2 = gst::ElementFactory::make("queue", None).expect("Could not create queue2 element.");
 
         self.0
             .pipeline
-            .add_many(&[
-                &source,
-                &videoconvert,
-                &queue,
-                &vp8enc,
-                &rtpvp8pay,
-                &queue2,
-            ])
-            .expect("Failed to add video elements to pipeline.");
+            .add_many(&[&source, &decodebin])
+            .expect("Could not add source and decodebin to pipeline.");
+        gst::Element::link_many(&[&source, &decodebin])
+            .expect("Could not link decodebin to source");
 
-        source.link(&videoconvert).expect("Could not link videoconvert to source");
-        videoconvert.link(&queue).expect("Could not link queue to videoconvert");
-        queue.link(&vp8enc).expect("Could not link vp8enc to queue");
-        vp8enc.link(&rtpvp8pay).expect("Could not link rtpvp8pay to vp8enc");
-        rtpvp8pay.link(&queue2).expect("Could not link queue2 to rtpvp8pay");
+        let pipeline_weak = self.0.pipeline.downgrade();
+        let webrtcbin_weak = self.0.webrtcbin.downgrade();
 
-        queue2.link_filtered(&self.0.webrtcbin, Some(&*RTP_CAPS_VP8)).expect("Could not link filtered video to webrtcbin");
+        decodebin.connect_pad_added(move |_dbin, src_pad| {
+            let pipeline = match pipeline_weak.upgrade() {
+                Some(pipeline) => pipeline,
+                None => return,
+            };
+            let webrtcbin = match webrtcbin_weak.upgrade() {
+                Some(webrtcbin) => webrtcbin,
+                None => return,
+            };
+
+            let (is_audio, is_video) = {
+                let media_type = src_pad.get_current_caps().and_then(|caps| {
+                    caps.get_structure(0).map(|s| {
+                        let name = s.get_name();
+                        (name.starts_with("audio/"), name.starts_with("video/"))
+                    })
+                });
+
+                match media_type {
+                    None => return,
+                    Some(media_type) => media_type,
+                }
+            };
+
+            let insert_sink = |_is_audio, is_video| -> Result<(), Error> {
+                if is_video {
+                    println!("got video pad");
+                    let queue = gst::ElementFactory::make("queue", None)
+                        .expect("Could not create queue element");
+                    let videoconvert =
+                        gst::ElementFactory::make("videoconvert", Some("videoconvert"))
+                            .expect("Could not create convert element.");
+                    let queue2 = gst::ElementFactory::make("queue", None)
+                        .expect("Could not create queue2 element.");
+                    let vp8enc = gst::ElementFactory::make("vp8enc", None)
+                        .expect("Could not create vp8enc element.");
+                    let rtpvp8pay = gst::ElementFactory::make("rtpvp8pay", None)
+                        .expect("Could not create rtpvp8pay element.");
+                    let queue3 = gst::ElementFactory::make("queue", None)
+                        .expect("Could not create queue3 element.");
+
+                    vp8enc
+                        .set_property("deadline", &1i64)
+                        .expect("Can't set deadline property on vp8enc");
+
+                    let elements1 = &[&queue, &videoconvert, &queue2, &vp8enc, &rtpvp8pay, &queue3];
+                    let elements2 = &[&queue, &videoconvert, &queue2, &vp8enc, &rtpvp8pay];
+                    pipeline
+                        .add_many(elements1)
+                        .expect("Failed to add video elements to pipeline.");
+                    gst::Element::link_many(elements2).expect("couldn't link video elements2");
+                    queue3
+                        .link_filtered(&webrtcbin, Some(&*RTP_CAPS_VP8))
+                        .expect("Could not link filtered video to webrtcbin");
+
+                    for e in elements1 {
+                        e.sync_state_with_parent()?
+                    }
+
+                    let sink_pad = queue
+                        .get_static_pad("sink")
+                        .expect("Could not get sinkpad from queue");
+                    src_pad
+                        .link(&sink_pad)
+                        .expect("Could not link queue pad to new src");
+
+                    println!("linked video_pad to webrtcbin");
+                }
+
+                Ok(())
+            };
+
+            if let Err(_err) = insert_sink(is_audio, is_video) {
+                println!("you should not be here");
+            }
+        });
 
         Ok(())
     }
@@ -422,8 +483,7 @@ impl App {
             .unwrap();
 
         // Create our audio/video sources we send to the peer
-        self.add_video_source()?;
-        //self.add_audio_source()?;
+        self.add_source()?;
 
         // Enable RTX only for video, Chrome etc al fail SDP negotiation otherwise
         if self.0.rtx {
