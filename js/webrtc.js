@@ -189,10 +189,6 @@ function onRemoteTrack(event) {
     }
 }
 
-function errorUserMediaHandler() {
-    setError("Browser doesn't support getUserMedia!");
-}
-
 const handleDataChannelOpen = (event) =>{
     console.log("dataChannel.OnOpen", event);
 };

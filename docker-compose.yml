@@ -6,11 +6,13 @@ services:
     network_mode: "host"
     environment:
       - GST_DEBUG=2
+
   sendrecv-js:
     build: ./js
     network_mode: "host"
     depends_on:
       - signalling
+
   signalling:
     build: ./signalling
     network_mode: "host"
