@@ -6,6 +6,7 @@ services:
     network_mode: "host"
     environment:
       - GST_DEBUG=2
+    env_file: .env
 
   sendrecv-js:
     build: ./js

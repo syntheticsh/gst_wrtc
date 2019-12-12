@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+
+  gstreamer:
+    build:
+      dockerfile: ./Dockerfile
+      context: .
+    image: syntheticsh/gstreamer:latest

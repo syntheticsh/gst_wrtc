@@ -104,11 +104,15 @@ impl App {
         args: Args,
     ) -> Result<(Self, impl Stream<Item = gst::Message>, impl Stream<Item = WsMessage>), anyhow::Error> {
         // Create the GStreamer pipeline
-        let pipeline = gst::parse_launch(
-            "videotestsrc pattern=ball is-live=true ! vp8enc deadline=1 ! rtpvp8pay pt=96 ! webrtcbin. \
-             audiotestsrc is-live=true ! opusenc ! rtpopuspay pt=97 ! webrtcbin. \
-             webrtcbin name=webrtcbin",
-        )?;
+
+        let link = std::env::var("LINK").expect("env LINK should be set for rtsp stream");
+        let launch = &format!("rtspsrc location=\"{}\" name=rtsp \
+    rtsp. ! queue ! application/x-rtp,media=video ! rtph264depay ! h264parse ! queue ! decodebin use-buffering=true ! queue ! videoconvert ! queue ! x264enc tune=zerolatency speed-preset=superfast ! queue ! video/x-h264,profile=constrained-baseline ! \
+        h264parse config-interval=-1 ! video/x-h264,split-packetized=true ! rtph264pay ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96,config-interval=-1,mtu=1468 ! webrtcbin. \
+    rtsp. ! queue ! application/x-rtp,media=audio ! decodebin ! audioconvert ! audioresample ! opusenc ! rtpopuspay pt=97 ! webrtcbin. \
+    webrtcbin name=webrtcbin", link);
+
+        let pipeline = gst::parse_launch(&launch)?;
 
         // Downcast from gst::Element to gst::Pipeline
         let pipeline = pipeline.downcast::<gst::Pipeline>().expect("not a pipeline");

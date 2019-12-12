@@ -52,3 +52,5 @@ out/
 # Our stuff
 *.pem
 webrtc-sendrecv
+
+.env
