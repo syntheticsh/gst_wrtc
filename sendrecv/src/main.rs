@@ -107,8 +107,7 @@ impl App {
 
         let link = std::env::var("LINK").expect("env LINK should be set for rtsp stream");
         let launch = &format!("rtspsrc location=\"{}\" name=rtsp \
-    rtsp. ! queue ! application/x-rtp,media=video ! rtph264depay ! h264parse ! queue ! decodebin use-buffering=true ! queue ! videoconvert ! queue ! x264enc tune=zerolatency speed-preset=superfast ! queue ! video/x-h264,profile=constrained-baseline ! \
-        h264parse config-interval=-1 ! video/x-h264,split-packetized=true ! rtph264pay ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96,config-interval=-1,mtu=1468 ! webrtcbin. \
+    rtsp. ! queue ! application/x-rtp,media=video ! rtph264depay ! h264parse config-interval=-1 ! decodebin ! videoconvert ! vp8enc deadline=1 ! rtpvp8pay pt=96 ! webrtcbin. \
     rtsp. ! queue ! application/x-rtp,media=audio ! decodebin ! audioconvert ! audioresample ! opusenc ! rtpopuspay pt=97 ! webrtcbin. \
     webrtcbin name=webrtcbin", link);
 

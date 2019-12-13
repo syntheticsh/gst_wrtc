@@ -1,24 +1,23 @@
-# taking video from rtsp
-gst-launch-1.0 -v rtspsrc location="" name=rtsp \
-    rtsp. ! queue ! application/x-rtp,media=video ! rtph264depay ! h264parse ! queue ! decodebin ! autovideosink
-
-# taking audio from rtsp
-gst-launch-1.0 -v rtspsrc location="" name=rtsp \
-    rtsp. ! queue ! capsfilter caps="application/x-rtp,media=audio" ! decodebin ! audioconvert ! audioresample ! opusenc ! decodebin ! autoaudiosink
-
-# taking both from rtsp
-gst-launch-1.0 -v rtspsrc location="" name=rtsp \
-    rtsp. ! queue ! rtph264depay ! h264parse ! queue ! decodebin ! queue ! autovideosink \
-    rtsp. ! queue ! capsfilter caps="application/x-rtp,media=audio" ! decodebin ! audioconvert ! audioresample ! opusenc ! rtpopuspay pt=97 ! queue ! autoaudiosink
-
-# WebRTC pipeline from rtsp
-rtspsrc location=\"{}\" name=rtsp \
-    rtsp. ! queue ! application/x-rtp,media=video ! rtph264depay ! h264parse ! rtph264pay pt=96 ! webrtcbin. \
-    rtsp. ! queue ! application/x-rtp,media=audio ! decodebin ! audioconvert ! audioresample ! opusenc ! rtpopuspay pt=97 ! webrtcbin. \
-    webrtcbin name=webrtcbin
-
+# stalls
 rtspsrc location=\"{}\" name=rtsp \
     rtsp. ! queue ! application/x-rtp,media=video ! rtph264depay ! h264parse ! queue ! decodebin use-buffering=true ! queue ! videoconvert ! queue ! x264enc tune=zerolatency speed-preset=superfast ! queue ! video/x-h264,profile=constrained-baseline ! \
         h264parse config-interval=-1 ! video/x-h264,split-packetized=true ! rtph264pay ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96,config-interval=-1,mtu=1468 ! webrtcbin. \
     rtsp. ! queue ! application/x-rtp,media=audio ! decodebin ! audioconvert ! audioresample ! opusenc ! rtpopuspay pt=97 ! webrtcbin. \
+    webrtcbin name=webrtcbin
+
+# works for desktop without audio - transcoding video to constrained-baseline
+rtspsrc location=\"{}\" name=rtsp \
+    rtsp. ! queue ! application/x-rtp,media=video ! rtph264depay ! h264parse ! queue ! decodebin use-buffering=true ! queue ! videoconvert ! queue ! x264enc tune=zerolatency speed-preset=superfast ! queue ! video/x-h264,profile=constrained-baseline ! \
+        h264parse config-interval=-1 ! video/x-h264,split-packetized=true ! rtph264pay ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96,config-interval=-1,mtu=1468 ! webrtcbin. \
+    webrtcbin name=webrtcbin
+
+# might work if you have camera with constrained-baseline encoded video
+rtspsrc location=\"{}\" tls-validation-flags=bad-identity ! \
+   queue ! application/x-rtp,media=video ! rtph264depay ! h264parse config-interval=-1 ! capsfilter caps=video/x-h264,profile=constrained-baseline ! \
+   video/x-h264,split-packetized=true ! rtph264pay ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96,config-interval=-1 ! \
+   decodebin name=final_bin ! autovideosink
+
+# should work everywhere - video transcoding
+rtspsrc location=\"{}\" name=rtsp \
+    rtsp. ! queue ! application/x-rtp,media=video ! rtph264depay ! h264parse config-interval=-1 ! decodebin ! videoconvert ! vp8enc deadline=1 ! rtpvp8pay pt=96 ! webrtcbin. \
     webrtcbin name=webrtcbin

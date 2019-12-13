@@ -8,10 +8,11 @@
  */
 
 // Set this to override the automatic detection in websocketServerConnect()
-var ws_server;
-var ws_port;
+var ws_server = "10.80.0.46";
+var ws_port = "8443";
 // Set this to use a specific peer id instead of a random one
-var default_peer_id = 1;
+var default_peer_id = "1";
+var peer_id;
 // Override with your own STUN servers if you want
 var rtc_configuration = {iceServers: [{urls: "stun:stun.services.mozilla.com"},
                                       {urls: "stun:stun.l.google.com:19302"}]};
@@ -161,20 +162,20 @@ function websocketServerConnect() {
     peer_id = default_peer_id || getOurId();
     ws_port = ws_port || '8443';
     if (window.location.protocol.startsWith ("file")) {
-        ws_server = ws_server || "127.0.0.1";
+        ws_server = ws_server || "10.80.0.46";
     } else if (window.location.protocol.startsWith ("http")) {
         ws_server = ws_server || window.location.hostname;
     } else {
         throw new Error ("Don't know how to connect to the signalling server with uri" + window.location);
     }
 
-    var ws_url = 'wss://' + ws_server + ':' + ws_port
+    var ws_url = 'wss://' + ws_server + ':' + ws_port;
     setStatus("Connecting to server " + ws_url);
     ws_conn = new WebSocket(ws_url);
     /* When connected, immediately register with the server */
     ws_conn.addEventListener('open', (event) => {
         document.getElementById("peer-id").textContent = peer_id;
-        ws_conn.send('HELLO ' + peer_id);
+        ws_conn.send(`HELLO ${peer_id}`);
         setStatus("Registering with server");
     });
     ws_conn.addEventListener('error', onServerError);
@@ -199,7 +200,7 @@ const handleDataChannelMessageReceived = (event) =>{
     setStatus("Received data channel message");
     if (typeof event.data === 'string' || event.data instanceof String) {
         console.log('Incoming string message: ' + event.data);
-        textarea = document.getElementById("text")
+        textarea = document.getElementById("text");
         textarea.value = textarea.value + '\n' + event.data
     } else {
         console.log('Incoming data message');
